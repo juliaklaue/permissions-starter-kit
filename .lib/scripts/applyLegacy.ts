@@ -104,7 +104,12 @@ async function main() {
 
   const diffUrl = `${ZODIAC_ROLES_APP}/${modArg}/roles/${roleArg}/diff/${hash}`;
   console.log("Preparing diff view...");
-  await fetch(diffUrl);
+  const diffResponse = await fetch(diffUrl);
+  if (!diffResponse.ok) {
+    console.warn(
+      `Diff view responded with HTTP ${diffResponse.status} — the page may not render correctly: ${diffUrl}`,
+    );
+  }
 
   let ownedBySafe = false;
   const owner = ownerAddress && getAddress(ownerAddress);
