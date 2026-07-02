@@ -16,16 +16,22 @@
 //   git checkout upstream/main -- .lib/scripts/sync-template.mjs
 //   node .lib/scripts/sync-template.mjs
 //
+// The roles/ directory is entirely yours: template-side changes to the
+// example roles are never brought into your project by a sync.
+//
 // The script is idempotent: run it again after resolving conflicts and
 // committing, and it will clean up after itself. Once the first sync merge
 // is committed, your history is permanently related to the template's —
-// future updates are a plain `git fetch upstream && git merge upstream/main`.
+// future updates are a plain `git fetch upstream && git merge upstream/main`
+// (though running this script keeps the roles/ guarantee).
 
 import { execSync } from "child_process";
 
 const UPSTREAM_URL =
   "https://github.com/gnosisguild/permissions-starter-kit.git";
-const UPSTREAM = "upstream/main";
+// SYNC_TEMPLATE_REF is a testing/advanced knob: point the sync at another
+// (possibly local) ref instead of upstream/main; skips the upstream fetch.
+const UPSTREAM = process.env.SYNC_TEMPLATE_REF ?? "upstream/main";
 const SCRIPT_PATH = ".lib/scripts/sync-template.mjs";
 
 const sh = (cmd, opts = {}) =>
@@ -90,12 +96,14 @@ if (sh("git rev-parse --is-shallow-repository") === "true") {
 }
 
 // Make sure the upstream remote exists and is fetched.
-if (trySh("git remote get-url upstream") === null) {
-  console.log("Adding upstream remote...");
-  sh(`git remote add upstream ${UPSTREAM_URL}`);
+if (!process.env.SYNC_TEMPLATE_REF) {
+  if (trySh("git remote get-url upstream") === null) {
+    console.log("Adding upstream remote...");
+    sh(`git remote add upstream ${UPSTREAM_URL}`);
+  }
+  console.log("Fetching upstream...");
+  sh("git fetch upstream");
 }
-console.log("Fetching upstream...");
-sh("git fetch upstream");
 
 // ---------------------------------------------------------------------------
 // Already related? Then this is a plain merge.
@@ -187,9 +195,23 @@ console.log("Grafted template ancestry — merging...\n");
 merge();
 
 function merge() {
+  let conflicted = false;
   try {
-    execSync(`git merge ${UPSTREAM} --no-edit`, { stdio: "inherit" });
+    // --no-commit so we can strip template-side roles/ changes before the
+    // merge is recorded, even when it would otherwise commit cleanly.
+    execSync(`git merge ${UPSTREAM} --no-edit --no-commit --no-ff`, {
+      stdio: "inherit",
+    });
   } catch {
+    conflicted = true;
+  }
+
+  keepOwnRolesDir();
+
+  const unresolved = sh("git diff --name-only --diff-filter=U")
+    .split("\n")
+    .filter(Boolean);
+  if (unresolved.length > 0) {
     console.log(
       "\nMerge stopped with conflicts — only files where both you and the\n" +
         "template changed the same lines. Resolve them, then:\n" +
@@ -199,7 +221,14 @@ function merge() {
     );
     process.exit(0);
   }
-  // Merge committed cleanly: drop the graft, it has served its purpose.
+
+  // Nothing left to resolve (either the merge was clean, or the only
+  // conflicts were under roles/ and we kept our side): commit it.
+  if (conflicted || trySh("git rev-parse -q --verify MERGE_HEAD") !== null) {
+    sh("git commit --no-edit");
+  }
+
+  // Merge committed: drop the graft, it has served its purpose.
   for (const ref of sh("git replace -l 2>/dev/null || true")
     .split("\n")
     .filter(Boolean)) {
@@ -208,5 +237,42 @@ function merge() {
   console.log(
     "\n✓ Synced with the latest template. Now run: yarn install\n" +
       "Future updates only need: git fetch upstream && git merge upstream/main"
+  );
+}
+
+// The roles/ directory is entirely user-owned: template-side changes to the
+// example roles must never propagate into user projects. Reset everything
+// under roles/ to our pre-merge state, whatever the merge brought in.
+function keepOwnRolesDir() {
+  // What did the merge stage (or leave conflicted) under roles/? The merge
+  // only touches paths where the template side differs from the merge base,
+  // so this is exactly the set of template-side changes we're about to skip.
+  const touched = sh("git status --porcelain -- roles/")
+    .split("\n")
+    .filter(Boolean)
+    .filter((line) => !line.startsWith("??"));
+  if (touched.length === 0) return;
+
+  // Restore all files that exist in HEAD (undoes template modifications and
+  // deletions, and resolves such conflicts to our version).
+  trySh("git checkout HEAD -- roles/");
+
+  // Drop files the merge staged under roles/ that HEAD doesn't have
+  // (template-added files, including add/add conflict entries).
+  const ours = new Set(
+    (trySh("git ls-tree -r --name-only HEAD -- roles/") ?? "")
+      .split("\n")
+      .filter(Boolean)
+  );
+  const staged = (trySh("git ls-files -- roles/") ?? "")
+    .split("\n")
+    .filter(Boolean);
+  for (const p of new Set(staged.filter((p) => !ours.has(p)))) {
+    sh(`git rm -q -f -- "${p}"`);
+  }
+
+  console.log(
+    `\nSkipped ${touched.length} template change(s) under roles/ — that` +
+      " directory is yours and is never touched by template syncs."
   );
 }
