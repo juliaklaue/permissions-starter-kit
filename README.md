@@ -16,10 +16,13 @@ Learn more about the motivation behind this approach in our blog ["Permissions a
 > ```bash
 > git remote add upstream https://github.com/gnosisguild/permissions-starter-kit.git
 > git fetch upstream
-> git merge upstream/main --allow-unrelated-histories
+> git checkout upstream/main -- .lib/scripts/sync-template.mjs
+> node .lib/scripts/sync-template.mjs
 > ```
 >
-> Resolve any conflicts (typically `package.json`, files under `.lib/`, and `apply.ts`), then run `yarn install`.
+> The script reconstructs the template version your repo was created from and merges from there, so only files where both you and the template changed the same lines will conflict. Resolve any remaining conflicts, `git commit`, then run `yarn install`.
+>
+> (A plain `git merge upstream/main --allow-unrelated-histories` also works, but degenerates into whole-file conflicts on every file — the script avoids that.)
 
 ## Getting Started
 
