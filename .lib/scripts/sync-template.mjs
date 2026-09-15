@@ -615,8 +615,10 @@ function migrateRoles(todos, touched) {
         const head = `defikit.${protocol}.${verb}(`;
         const label = `label: "${protocol} ${verb}"`;
         if (arg === ")") return `${head}{ ${label} })`;
+        if (indent !== undefined) {
+          return `${head}${ws}{\n${indent}${label},\n${indent}`;
+        }
         if (arg?.trim() === "{") return `${head}${ws}{ ${label}, `;
-        if (arg) return `${head}${ws}{\n${indent}${label},\n${indent}`;
         todos.push(
           `${file}: add a \`label\` to the parameters of defikit.${protocol}.${verb}(...).`
         );
