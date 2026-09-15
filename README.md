@@ -11,18 +11,20 @@ Learn more about the motivation behind this approach in our blog ["Permissions a
 > **Need to manage more than role permissions?** Check out the [Zodiac Constellation Template](https://github.com/gnosisguild/zodiac-constellation-template) — a more powerful base for managing entire account constellations as code. Beyond updating role permissions, it lets you manage Safe owners, configure Delay mod setups, and deploy entire account setups in one go, rather than clicking through web interfaces.
 
 > [!NOTE]
-> **Already using this template?** GitHub template repositories don't auto-sync, so updates to this kit don't reach your project automatically. To pull in the latest changes (most recently, the `apply` script's migration to [`@zodiac-os/sdk`](https://github.com/gnosisguild/permissions-starter-kit/pull/14)):
+> **Already using this template?** GitHub template repositories don't auto-sync, so updates to this kit don't reach your project automatically. To pull in the latest changes (most recently, the switch to [`@zodiaceco/sdk`](https://www.npmjs.com/package/@zodiaceco/sdk)):
 >
 > ```bash
-> git remote add upstream https://github.com/gnosisguild/permissions-starter-kit.git
+> git remote add upstream https://github.com/gnosisguild/permissions-starter-kit.git   # first time only
 > git fetch upstream
 > git checkout upstream/main -- .lib/scripts/sync-template.mjs
 > node .lib/scripts/sync-template.mjs
 > ```
 >
-> The script reconstructs the template version your repo was created from and merges from there, so only files where both you and the template changed the same lines will conflict. Resolve any remaining conflicts, `git commit`, then run `yarn install`.
+> The script reconstructs the template version your repo was created from and merges from there, so only files where both you and the template changed the same lines will conflict. Your [roles/](./roles) directory is never overwritten — instead, the script migrates it (along with your contracts and ABIs) to the current tooling in a separate commit, and lists anything it couldn't migrate automatically.
 >
-> (A plain `git merge upstream/main --allow-unrelated-histories` also works, but degenerates into whole-file conflicts on every file — the script avoids that.)
+> If the merge stops with conflicts, resolve them, `git commit`, and run the script once more to finish. Then run `yarn install` and `yarn setup`.
+>
+> This also applies if you synced before with an older version of the script or a plain `git merge`: run the commands above to finish the migration. `yarn apply` tells you when this is needed.
 
 ## Getting Started
 
@@ -64,33 +66,35 @@ As a preparatory step before actually defining the role permissions, configure t
 Then, you can run a command that fetches the ABIs of these contracts.
 This will provide automatic suggestions and correctness checks while authoring permissions.
 
-Open [contracts.ts](./contracts.ts) in the editor and add labels and addresses of any contracts you plan to use as targets in your permissions.
-At the top level of the exported object, define the host blockchain.
-The following values are supported:
-`mainnet`, `gnosis`, `polygon`, `arbitrumOne`, `avalanche`, `base`, `bsc`, `sepolia`
+Open [zodiac.config.ts](./zodiac.config.ts) in the editor and add labels and addresses of any contracts you plan to use as targets in your permissions.
+At the top level of `contracts`, use the [chain prefix](#prefixed-addresses) of the host blockchain, e.g. `eth`, `gno`, `arb1`, or `base`.
 
 Then, insert all target contract addresses as records using recognizable labels:
 
 ```typescript
-import type { Contracts } from "./.lib/types";
+import { defineConfig } from "@zodiaceco/sdk/cli/config";
 
-export default {
-  mainnet: {
-    // <label>: "<contract address>",
-    weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+export default defineConfig({
+  contracts: {
+    eth: {
+      // <label>: "<contract address>",
+      weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
 
-    // Optionally, group contracts in labeled categories:
-    uniswap: {
-      positions_nft: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+      // Optionally, group contracts in labeled categories:
+      uniswap: {
+        positions_nft: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+      },
     },
   },
-} satisfies Contracts;
+});
 ```
 
-<a name="sdk-setup-steps"></a>The following values are supported:
+<a name="sdk-setup-steps"></a>
 
-1. Save your changes in the contracts.ts file and run the following command in the terminal window:  
-   `yarn setup`
+1. Save your changes in the zodiac.config.ts file and run the following command in the terminal window:  
+   `yarn setup`  
+   The first time you run it, the CLI authorizes this directory with your [Zodiac organization](https://app.zodiac.eco): it opens a browser to mint an API key and saves it to `.env`.
+   ABIs are stored in [abis/](./abis). If a contract isn't verified, the command prints the path where you should paste its ABI JSON by hand before running it again.
 2. Open the VSCode command palette:  
    Mac: `Cmd` + `Shift` + `P`  
    Windows: `Ctrl` + `Shift` + `P`
@@ -98,13 +102,17 @@ export default {
 
 ### Edit Permissions
 
+A role's _permissions.ts_ exports a list of **entries**. Each entry is one thing the role may do.
+
+#### Contract Calls
+
 In the _permissions.ts_ file for your role, type `allow.`.
 You will see suggestions appearing next to your cursor.
-Select the path to the target contract as previously defined in [contracts.ts](./contracts.ts).
+Select the path to the target contract as previously defined in [zodiac.config.ts](./zodiac.config.ts).
 
 <img src="https://i.imgur.com/2jKAoNk.gif" alt="Using suggestion to complete permissions" />
 
-If the suggestions you see in the editor do not match the structure of your [contracts.ts](./contracts.ts) records, ensure you have followed the [three steps described above](#sdk-setup-steps).
+If the suggestions you see in the editor do not match the structure of your [zodiac.config.ts](./zodiac.config.ts) records, ensure you have followed the [three steps described above](#sdk-setup-steps).
 
 #### Set Conditions on Parameters
 
@@ -112,6 +120,49 @@ To limit allowed values for individual function parameters, you can use the Role
 Condition functions are available under the global `c` variable.
 
 Read more about conditions in the [documentation](https://docs.roles.gnosisguild.org/sdk/conditions).
+
+#### Labelled Entries
+
+Besides bare `allow` permissions, `@zodiaceco/sdk/actions` offers entries that carry a `label`, naming them as a single card in the Zodiac app (labels never reach the chain):
+
+```typescript
+import { custom, defikit, swap, transfer } from "@zodiaceco/sdk/actions";
+
+export default [
+  // A labelled bag of `allow` permissions, for anything the other entries don't cover.
+  custom({
+    label: "Wrap and unwrap ETH",
+    permissions: [
+      allow.eth.weth.deposit({ send: true }),
+      allow.eth.weth.withdraw(),
+    ],
+  }),
+
+  // A DeFi Kit preset, by protocol and verb.
+  defikit.aave_v3.deposit({
+    label: "Supply WETH to Aave v3",
+    market: "Core",
+    targets: ["WETH"],
+  }),
+
+  // Sign CoW orders selling any of `sell` for any of `buy`.
+  swap({
+    label: "Rebalance stables",
+    sell: [USDC, DAI],
+    buy: [USDC, DAI],
+  }),
+
+  // Send tokens to fixed recipients.
+  transfer({
+    label: "Payouts",
+    tokens: [USDC],
+    to: [PAYOUTS_SAFE],
+  }),
+] satisfies Permissions;
+```
+
+These entries describe what the role may do; they are compiled into permissions when the update is deployed.
+That's why you don't call `defi-kit` yourself — a compiled permission set is not a valid entry.
 
 ### Edit Members
 
@@ -134,8 +185,7 @@ For example, to apply the role `eth_wrapping` to a mainnet Roles mod at address 
 yarn apply eth_wrapping eth:0x1234123412341234123412341234123412341234
 ```
 
-The first time you apply, the CLI authorizes this directory with your [Zodiac organization](https://app.zodiac.eco): it opens a browser to mint an API key and saves it to `.env`.
-It then pushes the update to your workspace and prints a link to the Zodiac app, where you can review the changes and deploy them by signing the transaction.
+The command refreshes your organization data and contract ABIs, type-checks your roles, then pushes the update to your Zodiac workspace and prints a link to the Zodiac app, where you can review the changes and deploy them by signing the transaction.
 
 Applying permissions for the first time will create a new role.
 Subsequent applications will update the existing role, efficiently removing, updating, and adding permissions so that the role configuration on chain accurately reflects the permissions defined in code.
@@ -146,7 +196,8 @@ Once applied, start using your role through [Zodiac Pilot](https://pilot.gnosisg
 
 ## Folder Structure and Conventions
 
-- [contracts.ts](./contracts.ts) – Lists all contracts that are used as targets in permissions
+- [zodiac.config.ts](./zodiac.config.ts) – Lists all contracts that are used as targets in permissions
+- [abis/](./abis) – ABIs of these contracts, fetched by `yarn setup`
 - [roles/](./roles) – Host directory for role configurations
   - [`role_key`/](./roles/eth_wrapping) – Each subfolder represents a distinct role. The folder name will be used as the [role key](#role-keys).
     - [members.ts](./roles/eth_wrapping/members.ts) – Assigns the role to the listed member addresses
@@ -181,5 +232,21 @@ Chain prefixes for the supported chains are as follows:
 - Avalanche: `avax`
 - Base: `base`
 - BSC: `bnb`
+- Celo: `celo`
+- Sonic: `sonic`
+- Berachain: `berachain`
+- Unichain: `unichain`
+- World Chain: `worldchain`
+- BOB: `bob`
+- Mantle: `mantle`
+- Hemi: `hemi`
+- Katana: `katana`
+- Linea: `linea`
+- Ink: `ink`
+- HyperEVM: `hyperevm`
+- Flare: `flare`
+- Scroll: `scroll`
+- Plasma: `plasma`
+- MegaETH: `megaeth`
 - Base Sepolia: `basesep`
 - Sepolia Testnet: `sep`

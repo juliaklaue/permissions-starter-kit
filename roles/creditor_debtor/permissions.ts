@@ -1,11 +1,13 @@
-import { allow as allowAction } from "defi-kit/eth";
+import { defikit } from "@zodiaceco/sdk/actions";
 
 export default [
-  allowAction.aave_v3.deposit({
+  defikit.aave_v3.deposit({
+    label: "Supply USDC and WETH to Aave v3",
     market: "Core",
     targets: ["USDC", "WETH"],
   }),
-  allowAction.aave_v3.borrow({
+  defikit.aave_v3.borrow({
+    label: "Borrow USDC and WETH from Aave v3",
     market: "Core",
     targets: ["USDC", "WETH"],
   }),

@@ -1,11 +1,10 @@
-import { allow as _allow } from "zodiac-roles-sdk/kit";
-import { c as _c } from "zodiac-roles-sdk";
+import { c as _c } from "@zodiaceco/sdk";
 import type * as types from "./types";
+import { allow as _allow } from "./allow";
 
 declare global {
   var allow: typeof _allow;
   var c: typeof _c;
-  type Contracts = types.Contracts;
   type Members = types.Members;
   type Permissions = types.Permissions;
 }
