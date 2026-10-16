@@ -1,16 +1,12 @@
-import { NestedAddressesInput } from "@gnosis-guild/eth-sdk/dist/config";
-import { ChainId, Permission, PermissionSet, chains } from "zodiac-roles-sdk";
+import type { Permissions as SdkPermissions } from "@zodiaceco/sdk";
 
-type ChainName = (typeof chains)[ChainId]["name"];
+export type Members = readonly `0x${string}`[];
 
-export type Contracts = {
-  [chainName in ChainName]?: NestedAddressesInput;
-};
-
-export type Members = `0x${string}`[];
-
-export type Permissions = (
-  | Permission
-  | PermissionSet
-  | Promise<PermissionSet>
-)[];
+/**
+ * A role's permission list. Re-exported from the SDK rather than restated, so
+ * `permissions.ts` files are checked against the shape `push()` actually takes:
+ * a bare `allow`-kit permission, or one of the labelled entries from
+ * `@zodiaceco/sdk/actions`. A compiled `PermissionSet` — what calling `defi-kit`
+ * directly returns — is not one of them.
+ */
+export type Permissions = SdkPermissions;

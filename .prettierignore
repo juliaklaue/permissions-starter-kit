@@ -1,4 +1,4 @@
 node_modules
-contracts/abis
-build
+abis
+.zodiac
 package.json

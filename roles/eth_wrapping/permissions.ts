@@ -1,4 +1,4 @@
 export default [
-  allow.mainnet.weth.deposit({ send: true }),
-  allow.mainnet.weth.withdraw(),
+  allow.eth.weth.deposit({ send: true }),
+  allow.eth.weth.withdraw(),
 ] satisfies Permissions;

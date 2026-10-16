@@ -1,4 +1,4 @@
-import { allow as allowAction } from "defi-kit/eth";
+import { swap } from "@zodiaceco/sdk/actions";
 
 const USDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const DAI = "0x6b175474e89094c44da98b954eedeac495271d0f";
@@ -8,17 +8,15 @@ const WETH = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 const WBTC = "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599";
 
 export default [
-  // allow swapping between stablecoins
-  allowAction.cowswap.swap({
+  swap({
+    label: "Swap between stablecoins",
     sell: [USDC, DAI, USDS, USDT],
     buy: [USDC, DAI, USDS, USDT],
-    feeAmountBp: 0,
   }),
 
-  // allow buying WETH with WBTC
-  allowAction.cowswap.swap({
+  swap({
+    label: "Buy WETH with WBTC",
     sell: [WBTC],
     buy: [WETH],
-    feeAmountBp: 0,
   }),
 ] satisfies Permissions;

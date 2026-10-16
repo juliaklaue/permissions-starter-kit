@@ -3,5 +3,3 @@
 
 /.zodiac
 /node_modules
-/build
-/.lib/eth-sdk/tmp

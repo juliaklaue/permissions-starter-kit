@@ -1,20 +1,19 @@
 {
   "compilerOptions": {
-    "outDir": "build",
-    "declaration": false,
+    "noEmit": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "module": "CommonJS",
-    "moduleResolution": "node",
+    "module": "esnext",
+    // Respect package.json `exports` subpaths (required for @zodiaceco/sdk/actions etc).
+    "moduleResolution": "bundler",
     "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "sourceMap": false,
     "strict": true,
     "target": "es2022",
     "typeRoots": ["./node_modules/@types"],
     "lib": ["ES2023"]
   },
-  "include": ["roles/**/*", "contracts.ts", ".lib/**/*"],
-  "exclude": ["node_modules", "build"]
+  "include": ["roles/**/*", "zodiac.config.ts", ".lib/**/*", ".zodiac/**/*"],
+  "exclude": ["node_modules"]
 }
